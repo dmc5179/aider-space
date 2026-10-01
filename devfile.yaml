@@ -1,0 +1,77 @@
+schemaVersion: 2.2.2
+metadata:
+  name: aider-vllm
+  version: 1.0.0
+  displayName: Aider + vLLM Code Refactoring
+  description: >
+    DevWorkspace with Aider pre-installed for AI-assisted code refactoring
+    against a self-hosted vLLM model endpoint.
+  tags:
+    - ai
+    - coding-assistant
+    - vllm
+    - rhel9
+
+# To use: copy this devfile into your project repo, or reference it in
+# OpenShift DevSpaces. Update the VLLM_ENDPOINT and VLLM_MODEL env vars
+# to match your vLLM deployment.
+#
+# The container image must be built and pushed first:
+#   podman build -t quay.io/YOUR_ORG/aider-vllm:latest -f Containerfile .
+#   podman push quay.io/YOUR_ORG/aider-vllm:latest
+
+components:
+  - name: aider
+    container:
+      # Replace with your registry/org after building and pushing
+      image: quay.io/YOUR_ORG/aider-vllm:latest
+      memoryLimit: 2Gi
+      memoryRequest: 512Mi
+      cpuLimit: "2"
+      cpuRequest: 250m
+      mountSources: true
+      sourceMapping: /work
+      env:
+        # Point at your vLLM service — use the in-cluster service name
+        # if vLLM runs in the same OpenShift cluster
+        - name: VLLM_ENDPOINT
+          value: http://vllm-service.your-namespace.svc:8000
+        - name: VLLM_MODEL
+          value: YOUR_MODEL_NAME
+        - name: OPENAI_API_KEY
+          value: not-needed
+        - name: GIT_AUTHOR_NAME
+          value: Your Name
+        - name: GIT_AUTHOR_EMAIL
+          value: you@redhat.com
+
+commands:
+  - id: aider-start
+    exec:
+      label: Start Aider
+      component: aider
+      commandLine: aider --model "openai/${VLLM_MODEL}"
+      workingDir: /work
+      group:
+        kind: run
+        isDefault: true
+
+  - id: aider-check-vllm
+    exec:
+      label: Check vLLM Connection
+      component: aider
+      commandLine: |
+        echo "Endpoint: ${VLLM_ENDPOINT}"
+        curl -sf "${VLLM_ENDPOINT}/v1/models" | jq '.data[].id'
+      workingDir: /work
+
+  - id: aider-version
+    exec:
+      label: Aider Version
+      component: aider
+      commandLine: aider --version
+      workingDir: /work
+
+events:
+  postStart:
+    - aider-check-vllm
